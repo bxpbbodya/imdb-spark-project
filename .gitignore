@@ -14,4 +14,11 @@ venv/
 # PySpark / Hadoop
 logs/
 *.log
+
+output/
+data/
+__pycache__/
+*.log
+*.csv
+
  
