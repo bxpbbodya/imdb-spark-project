@@ -2,20 +2,20 @@ from pyspark.sql import functions as F
 from pyspark.sql.window import Window
 
 
-# 🧭 1️⃣ Базова інформація про датасет
+# Базова інформація про датасет
 def dataset_info(df):
-    print("📊 Кількість рядків:", df.count())
-    print("📋 Кількість колонок:", len(df.columns))
+    print(" Кількість рядків:", df.count())
+    print(" Кількість колонок:", len(df.columns))
     df.printSchema()
 
 
-# 🔢 2️⃣ Статистика по числових стовпцях
+# Статистика по числових стовпцях
 def numeric_stats(df):
-    print("📈 Статистика по числових колонках:")
+    print(" Статистика по числових колонках:")
     df.select("startYear", "runtimeMinutes", "isAdult").describe().show()
 
 
-# 💼 3️⃣ Бізнес-запити
+#  Бізнес-запити
 def business_queries(df):
     print("\n=== 1. Фільмів у кожному жанрі (groupBy + count) ===")
     df.groupBy("genres").count().orderBy(F.desc("count")).show(10)
@@ -43,9 +43,8 @@ def business_queries(df):
       .show(10)
 
 
-# 🔄 4️⃣ Приклад JOIN (імітація для IMDB)
+# Приклад JOIN (імітація для IMDB)
 def join_examples(df):
-    # Створимо умовний датафрейм з рейтингами (імітація іншого IMDB файлу)
     ratings_data = [
         ("tt0000001", 5.6, 200),
         ("tt0000002", 6.0, 180),
@@ -63,7 +62,7 @@ def join_examples(df):
     joined.filter(F.col("averageRating") > 6.0).select("primaryTitle", "averageRating").show(5)
 
 
-# 🪟 5️⃣ Приклад WINDOW функцій
+# Приклад WINDOW функцій
 def window_examples(df):
     window_spec = Window.partitionBy("genres").orderBy(F.desc("runtimeMinutes"))
 
@@ -84,7 +83,7 @@ import os
 
 def save_results(df, path="output/results.csv"):
     os.makedirs(os.path.dirname(path), exist_ok=True)
-    pdf = df.limit(1000).toPandas()  # збережемо лише частину, щоб не перевантажити RAM
+    pdf = df.limit(1000).toPandas()
     pdf.to_csv(path, index=False, encoding="utf-8-sig")
-    print(f"✅ Результати збережено у {os.path.abspath(path)}")
+    print(f" Результати збережено у {os.path.abspath(path)}")
 
