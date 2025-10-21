@@ -1,4 +1,3 @@
-from pyspark.sql import SparkSession
 from pyspark.sql.types import StructType, StructField, StringType, IntegerType
 
 def load_imdb_dataset(spark, path):
@@ -13,6 +12,5 @@ def load_imdb_dataset(spark, path):
         StructField("runtimeMinutes", IntegerType(), True),
         StructField("genres", StringType(), True)
     ])
-
     df = spark.read.csv(path, sep="\t", header=True, schema=schema)
     return df

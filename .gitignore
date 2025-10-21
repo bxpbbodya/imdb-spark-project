@@ -1,24 +1,40 @@
-# Python
+# --- Python ---
 __pycache__/
-*.pyc
+*.py[cod]
 *.pyo
 *.pyd
 *.env
 *.venv
 env/
 venv/
+.venv/
 
-# Jupyter
-.ipynb_checkpoints
+# --- IDE ---
+.vscode/
+.idea/
+*.iml
 
-# PySpark / Hadoop
+# --- Logs & Temp ---
 logs/
 *.log
+*.tmp
+*.swp
 
+# --- Output ---
 output/
-data/
-__pycache__/
-*.log
 *.csv
+*.parquet
 
- 
+# --- Data ---
+data/
+datasets/
+*.tsv
+*.gz
+
+# --- Jupyter ---
+.ipynb_checkpoints/
+
+# --- Hadoop / Spark ---
+derby.log
+metastore_db/
+spark-warehouse/
