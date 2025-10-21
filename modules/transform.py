@@ -82,12 +82,9 @@ def window_examples(df):
 
 import os
 
-def save_results(df, path="output/"):
-    print("\n💾 Збереження результатів у CSV...")
+def save_results(df, path="output/results.csv"):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    pdf = df.limit(1000).toPandas()  # збережемо лише частину, щоб не перевантажити RAM
+    pdf.to_csv(path, index=False, encoding="utf-8-sig")
+    print(f"✅ Результати збережено у {os.path.abspath(path)}")
 
-    # Створюємо директорію, якщо її немає
-    os.makedirs(path, exist_ok=True)
-
-    # Запис у CSV
-    df.coalesce(1).write.csv(path, header=True, mode="overwrite")
-    print("✅ Результати збережено в", path)
