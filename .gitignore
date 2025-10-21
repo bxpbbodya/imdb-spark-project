@@ -1,0 +1,17 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.env
+*.venv
+env/
+venv/
+
+# Jupyter
+.ipynb_checkpoints
+
+# PySpark / Hadoop
+logs/
+*.log
+ 
