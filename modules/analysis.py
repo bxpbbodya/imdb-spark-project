@@ -5,17 +5,22 @@ from pyspark.ml.evaluation import RegressionEvaluator, MulticlassClassificationE
 
 def prepare_data(df):
     df = df.dropna(subset=["runtimeMinutes", "startYear", "isAdult"])
-    assembler = VectorAssembler(inputCols=["startYear"], outputCol="features")
+    assembler = VectorAssembler(inputCols=["startYear"], outputCol="features") #Об’єднує кілька числових стовпців у один вектор features, необхідний для Spark ML.
     data = assembler.transform(df).select("features", "runtimeMinutes", "isAdult")
     return data
 
 
+from pyspark.ml.regression import LinearRegression, DecisionTreeRegressor, RandomForestRegressor
+from pyspark.ml.evaluation import RegressionEvaluator
+
 def regression_models(data):
     print("\nРегресійні моделі")
+
+    eval = RegressionEvaluator(labelCol="runtimeMinutes")
+
     lr = LinearRegression(featuresCol="features", labelCol="runtimeMinutes")
     lr_model = lr.fit(data)
     lr_preds = lr_model.transform(data)
-    eval = RegressionEvaluator(labelCol="runtimeMinutes")
     print("Linear Regression → RMSE:", eval.evaluate(lr_preds, {eval.metricName: "rmse"}))
     print("                    → R²:", eval.evaluate(lr_preds, {eval.metricName: "r2"}))
 
@@ -25,6 +30,11 @@ def regression_models(data):
     print("DecisionTreeRegressor → RMSE:", eval.evaluate(dtr_preds, {eval.metricName: "rmse"}))
     print("                         → R²:", eval.evaluate(dtr_preds, {eval.metricName: "r2"}))
 
+    rfr = RandomForestRegressor(featuresCol="features", labelCol="runtimeMinutes", numTrees=50)
+    rfr_model = rfr.fit(data)
+    rfr_preds = rfr_model.transform(data)
+    print("RandomForestRegressor → RMSE:", eval.evaluate(rfr_preds, {eval.metricName: "rmse"}))
+    print("                        → R²:", eval.evaluate(rfr_preds, {eval.metricName: "r2"}))
 
 def classification_models(data):
     print("\nКласифікаційні моделі")
@@ -52,3 +62,8 @@ def classification_models(data):
     print("                         → F1:", eval.evaluate(dt_preds, {eval.metricName: "f1"}))
     print("                         → Precision:", eval.evaluate(dt_preds, {eval.metricName: "weightedPrecision"}))
     print("                         → Recall:", eval.evaluate(dt_preds, {eval.metricName: "weightedRecall"}))
+
+#Spark зберігає дані в пам’яті, Hadoop читає з диску кожен етап. Spark у десятки разів швидший.
+#Що таке lazy evaluation у Spark? Операції (select, filter) не виконуються одразу
+#Narrow — не потребують shuffle (map, filter), wide — потребують (groupBy, join).
+#

@@ -30,7 +30,7 @@ def business_queries(df):
       .show(10)
 
     print("\n=== 4. Фільми для дорослих (filter) ===")
-    df.filter(F.col("isAdult") == 1).select("primaryTitle", "startYear").show(5)
+    df.filter(F.col("isAdult") == 1).select("primaryTitle", "startYear").show(5) # Синоніми з вере
 
     print("\n=== 5. Короткі фільми < 10 хв (filter + count) ===")
     short_count = df.filter(F.col("runtimeMinutes") < 10).count()
@@ -62,7 +62,7 @@ def join_examples(df):
     joined.filter(F.col("averageRating") > 6.0).select("primaryTitle", "averageRating").show(5)
 
 
-# Приклад WINDOW функцій
+# Приклад WINDOW функцій GroupBy зменш кільк рядків, а window + аналітичні стовпці, не зменш кільк рядків row-унікальний
 def window_examples(df):
     window_spec = Window.partitionBy("genres").orderBy(F.desc("runtimeMinutes"))
 
