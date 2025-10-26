@@ -4,8 +4,15 @@ from pyspark.ml.classification import LogisticRegression, RandomForestClassifier
 from pyspark.ml.evaluation import RegressionEvaluator, MulticlassClassificationEvaluator
 
 def prepare_data(df):
-    df = df.dropna(subset=["runtimeMinutes", "startYear", "isAdult"])
-    assembler = VectorAssembler(inputCols=["startYear"], outputCol="features") #Об’єднує кілька числових стовпців у один вектор features, необхідний для Spark ML.
+    # приберемо пропуски у важливих полях
+    df = df.dropna(subset=["runtimeMinutes", "startYear", "isAdult", "ratings_numVotes", "ratings_avgRating"])
+
+    # створимо ознаки для моделі
+    assembler = VectorAssembler(
+        inputCols=["startYear", "ratings_avgRating", "ratings_numVotes"],
+        outputCol="features"
+    )
+
     data = assembler.transform(df).select("features", "runtimeMinutes", "isAdult")
     return data
 

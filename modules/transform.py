@@ -1,89 +1,142 @@
 from pyspark.sql import functions as F
 from pyspark.sql.window import Window
+import os
 
-
-# Базова інформація про датасет
+# === 1️⃣ Базова інформація про датасет ===
 def dataset_info(df):
-    print(" Кількість рядків:", df.count())
-    print(" Кількість колонок:", len(df.columns))
+    print("Кількість рядків:", df.count())
+    print("Кількість колонок:", len(df.columns))
     df.printSchema()
 
 
-# Статистика по числових стовпцях
+# === 2️⃣ Статистика по числових стовпцях ===
 def numeric_stats(df):
-    print(" Статистика по числових колонках:")
+    print("\n=== Статистика по числових колонках ===")
     df.select("startYear", "runtimeMinutes", "isAdult").describe().show()
 
+def clean_dataset(df):
+    """Очищення даних від аномалій і нульових значень."""
+    print("\n=== Очищення датасету ===")
 
-#  Бізнес-запити
+    # Обмежуємо роки випуску
+    df = df.filter((F.col("startYear") >= 1900) & (F.col("startYear") <= 2030))
+
+    # Прибираємо аномальні або короткі фільми (< 20 хв)
+    df = df.filter((F.col("runtimeMinutes") >= 20) & (F.col("runtimeMinutes") <= 10000))
+
+    # Прибираємо фільми без жанру або з null
+    df = df.filter(F.col("genres").isNotNull())
+
+    # Прибираємо фільми без рейтингу або голосів
+    if "ratings_avgRating" in df.columns:
+        df = df.filter(F.col("ratings_avgRating").isNotNull())
+
+    # Видаляємо дублікатні tconst
+    df = df.dropDuplicates(["tconst"])
+
+    print(f"Після очищення: {df.count()} рядків, {len(df.columns)} колонок")
+    return df
+
+
+# === 3️⃣ Бізнес-запити ===
 def business_queries(df):
-    print("\n=== 1. Фільмів у кожному жанрі (groupBy + count) ===")
-    df.groupBy("genres").count().orderBy(F.desc("count")).show(10)
+    # ✅ Очищення перед аналітикою
+    df = df.dropDuplicates(["tconst"])
+    df = df.filter(
+        (F.col("startYear") >= 1900) & (F.col("startYear") <= 2025) &
+        (F.col("runtimeMinutes") >= 40) & (F.col("runtimeMinutes") <= 300)
+    )
 
-    print("\n=== 2. Кількість фільмів по роках (groupBy + count) ===")
+    print("\n=== 1. Кількість фільмів у кожному жанрі ===")
+    df.groupBy("genres").count().orderBy(F.desc("count")).show(10, truncate=False)
+
+    print("\n=== 2. Кількість фільмів по роках ===")
     df.groupBy("startYear").count().orderBy(F.desc("startYear")).show(10)
 
-    print("\n=== 3. Топ-10 найдовших фільмів (filter + orderBy) ===")
-    df.filter(F.col("runtimeMinutes") > 0) \
-      .orderBy(F.desc("runtimeMinutes")) \
-      .select("primaryTitle", "runtimeMinutes") \
-      .show(10)
+    print("\n=== 3. Топ-10 найдовших фільмів ===")
+    long_films = df.filter(F.col("runtimeMinutes") > 100) \
+                   .orderBy(F.desc("runtimeMinutes")) \
+                   .select("primaryTitle", "runtimeMinutes") \
+                   .distinct()
+    if long_films.count() == 0:
+        long_films = df.orderBy(F.desc("runtimeMinutes")) \
+                       .select("primaryTitle", "runtimeMinutes") \
+                       .distinct()
+    long_films.show(10, truncate=False)
 
-    print("\n=== 4. Фільми для дорослих (filter) ===")
-    df.filter(F.col("isAdult") == 1).select("primaryTitle", "startYear").show(5) # Синоніми з вере
+    print("\n=== 4. Фільми для дорослих ===")
+    df.filter(F.col("isAdult") == 1) \
+      .select("primaryTitle", "startYear") \
+      .distinct().show(5, truncate=False)
 
-    print("\n=== 5. Короткі фільми < 10 хв (filter + count) ===")
-    short_count = df.filter(F.col("runtimeMinutes") < 10).count()
-    print("Кількість коротких фільмів:", short_count)
+    print("\n=== 5. ТОП-10 драм 2000–2019 з рейтингом >8 і 5000+ голосів ===")
+    top_dramas = df.filter(
+        (F.col("startYear").between(2000, 2019)) &
+        (F.col("ratings_avgRating") > 8.0) &
+        (F.col("ratings_numVotes") > 5000) &
+        (F.col("genres").like("%Drama%"))
+    ).select(
+        "primaryTitle", "genres", "ratings_avgRating", "ratings_numVotes", "startYear"
+    ).orderBy(F.desc("ratings_avgRating"), F.desc("ratings_numVotes"))
 
-    print("\n=== 6. Середня тривалість за жанрами (groupBy + avg) ===")
-    df.groupBy("genres") \
-      .agg(F.avg("runtimeMinutes").alias("avg_length")) \
-      .orderBy(F.desc("avg_length")) \
-      .show(10)
+    if top_dramas.count() == 0:
+        print("⚠️ Немає фільмів, що відповідають умові.")
+    else:
+        top_dramas.show(10, truncate=False)
+
+    print("\n=== 6. Середній рейтинг по жанрах (2000–2019, 5000+ голосів) ===")
+    avg_genres = df.filter(
+        (F.col("startYear").between(2000, 2019)) &
+        (F.col("ratings_numVotes") > 5000) &
+        (F.col("ratings_avgRating").isNotNull())
+    ).groupBy("genres") \
+        .agg(F.round(F.avg("ratings_avgRating"), 2).alias("avg_rating")) \
+        .orderBy(F.desc("avg_rating"))
+
+    if avg_genres.count() == 0:
+        print("⚠️ Немає достатньо даних для підрахунку середніх рейтингів.")
+    else:
+        avg_genres.show(10, truncate=False)
 
 
-# Приклад JOIN (імітація для IMDB)
 def join_examples(df):
-    ratings_data = [
-        ("tt0000001", 5.6, 200),
-        ("tt0000002", 6.0, 180),
-        ("tt0000003", 7.3, 250),
-        ("tt0000004", 5.9, 100),
-        ("tt0000005", 6.4, 150)
-    ]
-    ratings_df = df.sparkSession.createDataFrame(ratings_data, ["tconst", "averageRating", "numVotes"])
+    # Створюємо тестовий DataFrame з існуючими tconst (щоб join точно спрацював)
+    example_ids = [r["tconst"] for r in df.limit(5).collect()]
+    ratings_data = [(t, 5.5 + i * 0.2, 100 + i * 50) for i, t in enumerate(example_ids)]
+    ratings_df = df.sparkSession.createDataFrame(ratings_data, ["tconst", "avg", "votes"])
 
-    print("\n=== 7. Join із рейтингами (inner join) ===")
+    print("\n=== 7. Join із тестовими рейтингами ===")
     joined = df.join(ratings_df, on="tconst", how="inner")
-    joined.select("primaryTitle", "averageRating", "numVotes").show(5)
+    if joined.count() == 0:
+        print("⚠️ Не вдалося знайти збіги за tconst — можливо, DataFrame пустий.")
+    else:
+        joined.select("primaryTitle", "avg", "votes").distinct().show(5, truncate=False)
 
-    print("\n=== 8. Join для пошуку фільмів > 6.0 рейтингу ===")
-    joined.filter(F.col("averageRating") > 6.0).select("primaryTitle", "averageRating").show(5)
+    print("\n=== 8. Фільми з рейтингом > 6.0 (тестовий join) ===")
+    joined.filter(F.col("avg") > 6.0).select("primaryTitle", "avg").distinct().show(5, truncate=False)
 
 
-# Приклад WINDOW функцій GroupBy зменш кільк рядків, а window + аналітичні стовпці, не зменш кільк рядків row-унікальний
+# === 5️⃣ WINDOW функції ===
 def window_examples(df):
+    df = df.dropDuplicates(["tconst"])
     window_spec = Window.partitionBy("genres").orderBy(F.desc("runtimeMinutes"))
 
-    print("\n=== 9. Top-1 найдовший фільм у кожному жанрі (window) ===")
+    print("\n=== 9. Найдовший фільм у кожному жанрі ===")
     df.withColumn("rank", F.row_number().over(window_spec)) \
       .filter(F.col("rank") == 1) \
       .select("genres", "primaryTitle", "runtimeMinutes") \
       .orderBy(F.desc("runtimeMinutes")) \
-      .show(10)
+      .show(10, truncate=False)
 
-    print("\n=== 10. Середня тривалість по жанрах (window avg) ===")
+    print("\n=== 10. Середня тривалість у жанрі (window avg) ===")
     df.withColumn("avg_len_genre", F.avg("runtimeMinutes").over(Window.partitionBy("genres"))) \
       .select("genres", "primaryTitle", "runtimeMinutes", "avg_len_genre") \
-      .show(10)
+      .show(10, truncate=False)
 
 
-import os
-
+# === 6️⃣ Збереження результатів ===
 def save_results(df, path="output/results.csv"):
     os.makedirs(os.path.dirname(path), exist_ok=True)
-    pdf = df.limit(1000).toPandas()
+    pdf = df.dropDuplicates(["tconst"]).limit(1000).toPandas()
     pdf.to_csv(path, index=False, encoding="utf-8-sig")
-    print(f" Результати збережено у {os.path.abspath(path)}")
-
+    print(f"\nРезультати збережено у {os.path.abspath(path)}")
