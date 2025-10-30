@@ -75,7 +75,7 @@ print("Колонки:", df_joined.columns)
 # === Етап трансформацій ===
 dataset_info(df_joined)
 numeric_stats(df_joined)
-business_queries(df_joined)
+business_queries(df_joined, akas, ratings)
 join_examples(df_joined)
 window_examples(df_joined)
 save_results(df_joined)

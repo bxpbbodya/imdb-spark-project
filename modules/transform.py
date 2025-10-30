@@ -2,7 +2,6 @@ from pyspark.sql import functions as F
 from pyspark.sql.window import Window
 import os
 
-from main import akas, ratings
 
 
 # === 1️⃣ Базова інформація про датасет ===
@@ -42,12 +41,16 @@ def clean_dataset(df):
 
 
 # === 3️⃣ Бізнес-запити ===
-def business_queries(df):
+from pyspark.sql import functions as F
+from pyspark.sql.window import Window
+
+
+def business_queries(df, akas, ratings):
     # ✅ Очищення перед аналітикою
     df = df.dropDuplicates(["tconst"])
     df = df.filter(
-        (F.col("startYear") >= 1900) & (F.col("startYear") <= 2025) &
-        (F.col("runtimeMinutes") >= 40) & (F.col("runtimeMinutes") <= 300)
+        (F.col("startYear") >= 1900) & (F.col("startYear") <= 2030) &
+        (F.col("runtimeMinutes") >= 40) & (F.col("runtimeMinutes") <= 10000)
     )
 
     print("\n=== 1. Кількість фільмів у кожному жанрі ===")
@@ -101,39 +104,50 @@ def business_queries(df):
     else:
         avg_genres.show(10, truncate=False)
 
+    # ✅ === 7. Топ-10 фільмів з найбільшою кількістю перекладів ===
     print("\n=== 7. Топ-10 фільмів з найбільшою кількістю перекладів ===")
 
-    top_translated = df.alias("b") \
-        .join(akas.alias("a"), F.col("b.tconst") == F.col("a.titleId")) \
-        .join(ratings.alias("r"), F.col("b.tconst") == F.col("r.tconst")) \
-        .groupBy("b.primaryTitle", "b.startYear", "r.averageRating") \
-        .agg(F.count("a.title").alias("translation_count")) \
-        .orderBy(F.desc("translation_count")) \
+    top_translated = (
+        df.alias("b")
+        .join(akas.alias("a"), F.col("b.tconst") == F.col("a.titleId"), "inner")
+        .join(ratings.alias("r"), F.col("b.tconst") == F.col("r.tconst"), "inner")
+        .groupBy("b.primaryTitle", "b.startYear", "r.averageRating")
+        .agg(F.count("a.title").alias("translation_count"))
+        .orderBy(F.desc("translation_count"))
         .limit(10)
+    )
 
-    top_translated.show(truncate=False)
+    if top_translated.count() == 0:
+        print("⚠️ Немає даних про переклади.")
+    else:
+        top_translated.show(truncate=False)
 
-    from pyspark.sql.window import Window
-
-    print("\n=== 10. ТОП-3 фільми в кожному жанрі за рейтингом (з перекладами) ===")
+    # ✅ === 8. ТОП-3 фільми в кожному жанрі за рейтингом (з перекладами) ===
+    print("\n=== 8. ТОП-3 фільми в кожному жанрі за рейтингом (з перекладами) ===")
 
     w = Window.partitionBy("b.genres").orderBy(F.desc("r.averageRating"))
 
-    top3_genres = df.alias("b") \
-        .join(akas.alias("a"), F.col("b.tconst") == F.col("a.titleId")) \
-        .join(ratings.alias("r"), F.col("b.tconst") == F.col("r.tconst")) \
-        .filter(F.col("r.numVotes") > 5000) \
+    top3_genres = (
+        df.alias("b")
+        .join(akas.alias("a"), F.col("b.tconst") == F.col("a.titleId"), "inner")
+        .join(ratings.alias("r"), F.col("b.tconst") == F.col("r.tconst"), "inner")
+        .filter(F.col("r.numVotes") > 5000)
         .select(
-        "b.primaryTitle",
-        "b.genres",
-        "a.region",
-        "r.averageRating",
-        F.row_number().over(w).alias("rank")
-    ) \
-        .filter(F.col("rank") <= 3) \
-        .orderBy("genres", "rank")
+            "b.primaryTitle",
+            "b.genres",
+            "a.region",
+            "r.averageRating",
+            F.row_number().over(w).alias("rank")
+        )
+        .filter(F.col("rank") <= 3)
+        .orderBy("b.genres", "rank")
+    )
 
-    top3_genres.show(50, truncate=False)
+    if top3_genres.count() == 0:
+        print("⚠️ Недостатньо даних для вибірки.")
+    else:
+        top3_genres.show(50, truncate=False)
+
 
 
 def join_examples(df):
