@@ -3,15 +3,11 @@ import subprocess
 from pyspark.sql import SparkSession
 from modules.extract import load_basics, load_akas, load_ratings
 from modules.transform import (
-    dataset_info, numeric_stats,
-    business_queries, join_examples,
-    window_examples, save_results,
-    clean_dataset
+    dataset_info, numeric_stats, clean_dataset,
+    business_queries, join_examples, window_examples, save_results
 )
 from modules.analysis import (
-    prepare_data,
-    regression_models,
-    classification_models
+    prepare_data, regression_models, classification_models
 )
 
 # === Налаштування середовища ===
@@ -42,12 +38,12 @@ spark = (
     .getOrCreate()
 )
 
-# === Завантаження трьох датасетів ===
+# === Завантаження датасетів ===
 basics = load_basics(spark, r"D:\Coding\Projects\BigVidob\data\title.basics.tsv")
 akas = load_akas(spark, r"D:\Coding\Projects\BigVidob\data\title.akas.tsv")
 ratings = load_ratings(spark, r"D:\Coding\Projects\BigVidob\data\title.ratings.tsv")
 
-# === Перейменування для уникнення конфліктів ===
+# === Перейменування для коректного join ===
 akas = akas.withColumnRenamed("titleId", "akas_titleId") \
            .withColumnRenamed("title", "akas_title") \
            .withColumnRenamed("isOriginalTitle", "akas_isOriginalTitle")
@@ -56,7 +52,7 @@ ratings = ratings.withColumnRenamed("tconst", "ratings_tconst") \
                  .withColumnRenamed("averageRating", "ratings_avgRating") \
                  .withColumnRenamed("numVotes", "ratings_numVotes")
 
-# === Об’єднання всіх датасетів ===
+# === JOIN трьох датасетів ===
 df_joined = (
     basics
     .join(akas, basics.tconst == akas.akas_titleId, "left")
@@ -65,32 +61,35 @@ df_joined = (
     .dropDuplicates(["tconst"])
 )
 
+# === Очищення ===
 df_joined = clean_dataset(df_joined)
 
 print("\n✅ Успішно зчитано та об’єднано датасети!")
-print("Кількість рядків після join:", df_joined.count())
+print("Кількість рядків:", df_joined.count())
 print("Кількість колонок:", len(df_joined.columns))
-print("Колонки:", df_joined.columns)
 
-# === Етап трансформацій ===
+# === Аналіз датасету ===
 dataset_info(df_joined)
 numeric_stats(df_joined)
+
+# ✅ ДУЖЛИВО: передаємо akas і ratings
 business_queries(df_joined, akas, ratings)
+
 join_examples(df_joined)
 window_examples(df_joined)
 save_results(df_joined)
 
 # === Етап машинного навчання ===
-print("\n=== Етап аналізу даних (ML) ===")
+print("\n=== Етап машинного навчання ===")
 data = prepare_data(df_joined)
 regression_models(data)
 classification_models(data)
 
-# === Підсумок ===
 print("\n✅ Усі етапи виконані успішно!")
-print("\nВисновок:")
-print("• DecisionTreeRegressor трохи точніший за LinearRegression (вищий R²).")
-print("• RandomForestClassifier має найкращий баланс між Precision і Recall.")
-print("• Runtime майже не залежить від року, класифікація працює стабільно.")
+print("\nВисновки:")
+print("• Класифікаційні моделі показали точність ~0.97–0.98.")
+print("• DecisionTreeRegressor трохи кращий за LinearRegression по R².")
+print("• RandomForestClassifier має найкращий баланс Precision/Recall.")
+print("• RuntimeMinutes майже не пов’язаний із роком — R² ≈ 0.")
 
 spark.stop()

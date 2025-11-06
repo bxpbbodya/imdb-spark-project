@@ -109,10 +109,10 @@ def business_queries(df, akas, ratings):
 
     top_translated = (
         df.alias("b")
-        .join(akas.alias("a"), F.col("b.tconst") == F.col("a.titleId"), "inner")
-        .join(ratings.alias("r"), F.col("b.tconst") == F.col("r.tconst"), "inner")
-        .groupBy("b.primaryTitle", "b.startYear", "r.averageRating")
-        .agg(F.count("a.title").alias("translation_count"))
+        .join(akas.alias("a"), F.col("b.tconst") == F.col("a.akas_titleId"), "inner")
+        .join(ratings.alias("r"), F.col("b.tconst") == F.col("r.ratings_tconst"), "inner")
+        .groupBy("b.primaryTitle", "b.startYear", "r.ratings_avgRating")
+        .agg(F.count("a.akas_title").alias("translation_count"))
         .orderBy(F.desc("translation_count"))
         .limit(10)
     )
@@ -122,21 +122,20 @@ def business_queries(df, akas, ratings):
     else:
         top_translated.show(truncate=False)
 
-    # ✅ === 8. ТОП-3 фільми в кожному жанрі за рейтингом (з перекладами) ===
     print("\n=== 8. ТОП-3 фільми в кожному жанрі за рейтингом (з перекладами) ===")
 
-    w = Window.partitionBy("b.genres").orderBy(F.desc("r.averageRating"))
+    w = Window.partitionBy("b.genres").orderBy(F.desc("r.ratings_avgRating"))
 
     top3_genres = (
         df.alias("b")
-        .join(akas.alias("a"), F.col("b.tconst") == F.col("a.titleId"), "inner")
-        .join(ratings.alias("r"), F.col("b.tconst") == F.col("r.tconst"), "inner")
-        .filter(F.col("r.numVotes") > 5000)
+        .join(akas.alias("a"), F.col("b.tconst") == F.col("a.akas_titleId"), "inner")
+        .join(ratings.alias("r"), F.col("b.tconst") == F.col("r.ratings_tconst"), "inner")
+        .filter(F.col("r.ratings_numVotes") > 5000)
         .select(
             "b.primaryTitle",
             "b.genres",
             "a.region",
-            "r.averageRating",
+            "r.ratings_avgRating",
             F.row_number().over(w).alias("rank")
         )
         .filter(F.col("rank") <= 3)
@@ -144,10 +143,9 @@ def business_queries(df, akas, ratings):
     )
 
     if top3_genres.count() == 0:
-        print("⚠️ Недостатньо даних для вибірки.")
+        print("⚠️ Недостатньо даних.")
     else:
         top3_genres.show(50, truncate=False)
-
 
 
 def join_examples(df):
